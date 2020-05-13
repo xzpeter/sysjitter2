@@ -80,7 +80,7 @@ struct thread {
     cycles_t             runtime;
     stamp_t             *buckets;
     /* Maximum latency detected */
-    stamp_t              max_jitter;
+    stamp_t              maxlat;
 };
 
 struct global {
@@ -163,7 +163,7 @@ static unsigned measure_cpu_mhz(void)
 static void thread_init(struct thread* t)
 {
     t->cpu_mhz = measure_cpu_mhz();
-    t->max_jitter = 0;
+    t->maxlat = 0;
     TEST(t->buckets = calloc(1, sizeof(t->buckets[0]) * g.bucket_size));
 }
 
@@ -196,8 +196,8 @@ static void insert_bucket(struct thread *t, stamp_t value)
     if (index >= g.bucket_size)
         index = g.bucket_size - 1;
 
-    if (value >= t->max_jitter) {
-        t->max_jitter = value;
+    if (value >= t->maxlat) {
+        t->maxlat = value;
     }
 
     t->buckets[index]++;
@@ -308,7 +308,7 @@ static void write_summary(struct thread* t)
         printf("\n");
     }
 
-    put_cycles_us(max_jitter);
+    put_cycles_us(maxlat);
     put_cycles_s(runtime);
 
     if( g.verbose ) {
