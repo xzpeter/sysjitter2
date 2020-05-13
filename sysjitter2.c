@@ -172,32 +172,30 @@ static float cycles_to_sec(const struct thread* t, uint64_t cycles)
     return cycles / (t->cpu_mhz * 1e6);
 }
 
-static float cycles_to_usec(const struct thread* t, uint64_t cycles)
-{
-    return cycles / t->cpu_mhz;
-}
-
 static void insert_bucket(struct thread *t, stamp_t value)
 {
-    int index;
+    int index, us;
 
     index = value / t->cpu_mhz;
     assert(index >= 0);
+    us = index + 1;
+    assert(us > 0);
 
-    /* index is actually also, us */
-    if (g.trace_threshold && index >= g.trace_threshold) {
-        tracemark("%s: Trace threshold (%d us) triggered!  "
-                  "Stopping the test.\n", app, g.trace_threshold);
-        err_quit("Trace threshold (%d us) triggered!  Stopping the test.\n",
-                 g.trace_threshold);
+    if (g.trace_threshold && us >= g.trace_threshold) {
+        char *line = "%s: Trace threshold (%d us) triggered with %u us!  "
+            "Stopping the test.\n";
+        tracemark(line, app, g.trace_threshold, us);
+        err_quit(line, g.trace_threshold, us);
+    }
+
+    /* Update max latency */
+    if (us > t->maxlat) {
+        t->maxlat = us;
     }
 
     /* Too big the jitter; put into the last bucket */
-    if (index >= g.bucket_size)
+    if (index >= g.bucket_size) {
         index = g.bucket_size - 1;
-
-    if (value >= t->maxlat) {
-        t->maxlat = value;
     }
 
     t->buckets[index]++;
@@ -290,8 +288,6 @@ static void* thread_main(void* arg)
 #define put_frc(fn)  putfield(fn, PRIx64)
 #define put_cycles_s(fn)                                                \
     _putfield(#fn, cycles_to_sec(&(t[i]), t[i].fn), ".3f", " (sec)")
-#define put_cycles_us(fn)                                               \
-    _putfield(#fn, cycles_to_usec(&(t[i]), t[i].fn), ".0f", " (us)")
 
 static void write_summary(struct thread* t)
 {
@@ -308,7 +304,7 @@ static void write_summary(struct thread* t)
         printf("\n");
     }
 
-    put_cycles_us(maxlat);
+    _putfield("maxlat", t[i].maxlat, PRIu64, " (us)");
     put_cycles_s(runtime);
 
     if( g.verbose ) {
