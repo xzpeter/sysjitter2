@@ -1,6 +1,13 @@
-TARGETS = sysjitter2
-include rules.mk
+ifndef CFLAGS
+CFLAGS		= -O2 -Wall
+endif
 
+ifdef NDEBUG
+CPPFLAGS	+= -DNDEBUG
+endif
+
+INCLUDE		+= -I.
+LDFLAGS         += -lpthread
 
 is_ppc		:= $(shell (uname -m || uname -p) | grep ppc)
 is_x86		:= $(shell (uname -m || uname -p) | grep i.86)
@@ -11,5 +18,12 @@ ifneq ($(is_x86),)
 CFLAGS += -march=i686
 endif
 
+sysjitter2: sysjitter2.c rt-utils.c error.c trace.c
 
-sysjitter2: LIBS := -lpthread
+all: sysjitter2
+
+clean:
+	rm -f *.o sysjitter2 cscope.*
+
+cscope:
+	cscope -bq *.c

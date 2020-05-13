@@ -18,19 +18,8 @@
  */
 
 #define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <inttypes.h>
-#include <string.h>
-#include <errno.h>
-#include <pthread.h>
-#include <sys/time.h>
-#include <sched.h>
-#include <ctype.h>
-#include <assert.h>
+
+#include "rt-utils.h"
 
 #ifdef __GNUC__
 # define atomic_inc(ptr)   __sync_add_and_fetch((ptr), 1)
@@ -64,6 +53,7 @@ static inline void frc(uint64_t* pval)
 
 typedef uint64_t stamp_t;   /* timestamp */
 typedef uint64_t cycles_t;  /* number of cycles */
+const char* app;
 
 enum command {
     WAIT,
@@ -89,8 +79,6 @@ struct thread {
     stamp_t             *buckets;
     /* Maximum latency detected */
     stamp_t              max_jitter;
-    /* Outliers that are bigger than the maximum bucket tick */
-    stamp_t              outlier_ticks;
 };
 
 struct global {
@@ -101,6 +89,7 @@ struct global {
     int                   verbose;
     int                   rtprio;
     int                   bucket_size;
+    int                   trace_threshold;
 
     /* Mutable state. */
     volatile enum command cmd;
@@ -173,7 +162,6 @@ static void thread_init(struct thread* t)
 {
     t->cpu_mhz = measure_cpu_mhz();
     t->max_jitter = 0;
-    t->outlier_ticks = t->cpu_mhz * g.bucket_size;
     TEST(t->buckets = calloc(1, sizeof(t->buckets[0]) * g.bucket_size));
 }
 
@@ -191,18 +179,25 @@ static void insert_bucket(struct thread *t, stamp_t value)
 {
     int index;
 
+    index = value / t->cpu_mhz;
+    assert(index >= 0);
+
+    /* index is actually also, us */
+    if (g.trace_threshold && index >= g.trace_threshold) {
+        tracemark("%s: Trace threshold (%d us) triggered!  "
+                  "Stopping the test.\n", app, g.trace_threshold);
+        err_quit("Trace threshold (%d us) triggered!  Stopping the test.\n",
+                 g.trace_threshold);
+    }
+
+    /* Too big the jitter; put into the last bucket */
+    if (index >= g.bucket_size)
+        index = g.bucket_size - 1;
+
     if (value >= t->max_jitter) {
         t->max_jitter = value;
     }
 
-    /* Too big!  Put also into the last bucket */
-    if (value >= t->outlier_ticks) {
-        t->buckets[g.bucket_size-1]++;
-        return;
-    }
-
-    index = value / t->cpu_mhz;
-    assert(index >= 0 && index < g.bucket_size);
     t->buckets[index]++;
     if (t->buckets[index] == 0) {
         printf("Bucket %d overflowed\n", index);
@@ -369,6 +364,8 @@ static void usage(const char* prog)
     fprintf(stderr, "  --runtime <seconds>\n");
     fprintf(stderr, "  --cpu-list <CPU-list>\n");
     fprintf(stderr, "  --rtprio <RT-prio>\n");
+    fprintf(stderr, "  --trace-threshold <us>\n");
+    fprintf(stderr, "  --bucket-size <value> (4-1024)\n");
     fprintf(stderr, "  --verbose\n");
     exit(1);
 }
@@ -420,11 +417,12 @@ error:
 int main(int argc, char* argv[])
 {
     struct thread* threads;
-    const char* app = argv[0];
     char* cpu_list = NULL;
     char dummy;
     int i, n_cores, runtime = 70;
     cpu_set_t cpu_set;
+
+    app = argv[0];
 
     CPU_ZERO(&cpu_set);
     g.rtprio = -1;
@@ -448,7 +446,18 @@ int main(int argc, char* argv[])
         }
         else if( strcmp(argv[0], "--bucket-size") == 0 ) {
             sscanf(argv[1], "%i%c", &g.bucket_size, &dummy);
-            assert(g.bucket_size > 0 && g.bucket_size <= 1024);
+            if (g.bucket_size <= 4 || g.bucket_size > 1024) {
+                err_quit("Incorrect --bucket-size %d (requires 4<size<=1024)\n",
+                         g.bucket_size);
+            }
+            --argc, ++argv;
+        }
+        else if( strcmp(argv[0], "--trace-threshold") == 0 ) {
+            sscanf(argv[1], "%i%c", &g.trace_threshold, &dummy);
+            if (g.trace_threshold <= 0) {
+                err_quit("Parameter --trace-threshold needs to be positive\n");
+            }
+            enable_trace_mark();
             --argc, ++argv;
         }
         else if( strcmp(argv[0], "--rtprio") == 0 ) {
