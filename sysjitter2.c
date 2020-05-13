@@ -55,7 +55,8 @@ static inline void frc(uint64_t* pval)
 
 typedef uint64_t stamp_t;   /* timestamp */
 typedef uint64_t cycles_t;  /* number of cycles */
-const char* app;
+static const char* app;
+static const char* version = "2.01";
 
 enum command {
     WAIT,
@@ -425,6 +426,8 @@ int main(int argc, char* argv[])
     CPU_ZERO(&cpu_set);
     g.rtprio = -1;
     g.bucket_size = BUCKET_SIZE;
+
+    printf("Version: %s\n\n", version);
 
     --argc; ++argv;
     for( ; argc; --argc, ++argv ) {
