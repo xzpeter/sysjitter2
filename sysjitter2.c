@@ -186,7 +186,7 @@ static void insert_bucket(struct thread *t, stamp_t value)
         char *line = "%s: Trace threshold (%d us) triggered with %u us!  "
             "Stopping the test.\n";
         tracemark(line, app, g.trace_threshold, us);
-        err_quit(line, g.trace_threshold, us);
+        err_quit(line, app, g.trace_threshold, us);
     }
 
     /* Update max latency */
