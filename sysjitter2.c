@@ -477,6 +477,8 @@ int main(int argc, char* argv[])
     TEST(move_to_core(0) == 0);
 
     signal(SIGALRM, handle_alarm);
+    signal(SIGINT, handle_alarm);
+    signal(SIGTERM, handle_alarm);
 
     run_expt(threads, 1);
     cleanup_expt(threads);
