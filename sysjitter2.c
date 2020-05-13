@@ -469,6 +469,8 @@ int main(int argc, char* argv[])
         }
     }
 
+    TEST(mlockall(MCL_CURRENT | MCL_FUTURE) == 0);
+
     n_cores = parse_cpu_list(cpu_list, &cpu_set);
 
     TEST( threads = calloc(1, CPU_COUNT(&cpu_set) * sizeof(threads[0])) );
