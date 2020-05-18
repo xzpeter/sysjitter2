@@ -56,7 +56,7 @@ static inline void frc(uint64_t* pval)
 typedef uint64_t stamp_t;   /* timestamp */
 typedef uint64_t cycles_t;  /* number of cycles */
 static const char* app;
-static const char* version = "2.01";
+static const char* version = "2.02";
 
 enum command {
     WAIT,
