@@ -361,7 +361,7 @@ static void usage(const char* prog)
     fprintf(stderr, "\n");
     fprintf(stderr, "options:\n");
     fprintf(stderr, "  --runtime <seconds>\n");
-    fprintf(stderr, "  --cpu-list <CPU-list>\n");
+    fprintf(stderr, "  --cpu-list <CPU-list>  (e.g. '1,3,5,7-15')\n");
     fprintf(stderr, "  --rtprio <RT-prio>\n");
     fprintf(stderr, "  --trace-threshold <us>\n");
     fprintf(stderr, "  --bucket-size <value> (4-1024)\n");
@@ -369,22 +369,11 @@ static void usage(const char* prog)
     exit(1);
 }
 
-static int cpu_list_is_valid(const char *cpu_list)
-{
-    const char *p;
-
-    for (p = cpu_list; *p; p++)
-        if (!isdigit(*p) && *p != ',')
-            return 0;
-
-    return 1;
-}
-
 /* TODO: use libnuma? */
 static int parse_cpu_list(char *cpu_list, cpu_set_t *cpu_set)
 {
+    struct bitmask *cpu_mask;
     int i, n_cores;
-    char *p;
 
     n_cores = sysconf(_SC_NPROCESSORS_CONF);
 
@@ -394,23 +383,21 @@ static int parse_cpu_list(char *cpu_list, cpu_set_t *cpu_set)
         return n_cores;
     }
 
-    if (!cpu_list_is_valid(cpu_list))
-        goto error;
-
-    p = strtok(cpu_list, ",");
-    while (p) {
-        i = atoi(p);
-        if (i > n_cores)
-            goto error;
-        CPU_SET(i, cpu_set);
-        p = strtok(NULL, ",");
+    cpu_mask = numa_parse_cpustring_all(cpu_list);
+    if (cpu_mask) {
+        for (i = 0; i < n_cores; i++) {
+            if (numa_bitmask_isbitset(cpu_mask, i)) {
+                CPU_SET(i, cpu_set);
+            }
+        }
+        numa_bitmask_free(cpu_mask);
+    } else {
+        warn("Unknown cpu-list: %s, using all available cpus\n", cpu_list);
+        for (i = 0; i < n_cores; i++)
+            CPU_SET(i, cpu_set);
     }
 
     return n_cores;
-
-error:
-    fprintf(stderr, "ERROR: bad cpu list: %s\n", cpu_list);
-    exit(1);
 }
 
 int main(int argc, char* argv[])

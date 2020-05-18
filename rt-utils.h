@@ -18,6 +18,7 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <numa.h>
 #include <limits.h>
 #include <linux/unistd.h>
 

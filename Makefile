@@ -7,7 +7,7 @@ CPPFLAGS	+= -DNDEBUG
 endif
 
 INCLUDE		+= -I.
-LDFLAGS         += -lpthread
+LDFLAGS         += -lpthread -lnuma
 
 is_ppc		:= $(shell (uname -m || uname -p) | grep ppc)
 is_x86		:= $(shell (uname -m || uname -p) | grep i.86)
